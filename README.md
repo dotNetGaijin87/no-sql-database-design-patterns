@@ -22,7 +22,7 @@ The pattern taxonomy follows a document-modeling curriculum (embedding, referenc
 
 ### Before — the naive port
 
-[`src/000_initial_naive.js`](src/000_initial_naive.js) is deliberately imperfect: it carries relational habits straight into MongoDB — one collection per table, relationships faked as string foreign keys (dashed below), and not a single index — so the later scripts have something real to fix. Every cross-collection read is a `$lookup`.
+[`src/000_initial_naive.js`](src/000_initial_naive.js) is deliberately imperfect: it carries relational habits straight into MongoDB — a random `ObjectId` `_id` beside a duplicate business id, relationships faked as **string foreign keys** (dashed, amber below), a separate `orderLines` collection, denormalized strings (`wishlist`, `category`, `creditCard`), and not a single index — so the later scripts have something real to fix. Every cross-collection read is a `$lookup`.
 
 <p align="center">
   <img src="docs/images/model-before.svg" alt="OnlineStore — the naive relational port: five collections joined by string foreign keys" width="100%">
@@ -30,7 +30,7 @@ The pattern taxonomy follows a document-modeling curriculum (embedding, referenc
 
 ### After — the document model
 
-The natural key becomes `_id`, each access pattern gets its index, and the order carries its lines **inline** — one self-contained document, one read, no join. What stays split is referenced by id (solid), the catalogue becomes a real tree, and `reviews` keeps its own collection (shared, independently written) with a few fields copied across ([005](docs/patterns/005-extended-reference.md)). The high-volume `activity` stream is referenced then bucketed ([007](docs/patterns/007-referencing-unbounded.md)/[008](docs/patterns/008-bucket.md)) rather than embedded.
+The natural key becomes `_id`, each access pattern gets its index, and the order carries its lines **embedded** inline (`items[]`, shown nested) — one self-contained document, one read, no join. What stays split is referenced by id (solid lines, with `N:1` / `N:N` cardinality); note the order↔product relationship is **N:N** (an order embeds many products, a product appears in many orders — verified against the data). The catalogue becomes a real `categories` **tree** (the `parentId` self-reference), and `reviews` keeps its own collection with a few fields copied across ([005](docs/patterns/005-extended-reference.md)). The high-volume `activity` stream is referenced then bucketed ([007](docs/patterns/007-referencing-unbounded.md)/[008](docs/patterns/008-bucket.md)) rather than embedded.
 
 <p align="center">
   <img src="docs/images/model-after.svg" alt="OnlineStore — the idiomatic document model: embedded items, id references, and a category tree" width="100%">

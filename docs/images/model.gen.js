@@ -1,150 +1,119 @@
 // ---------------------------------------------------------------------------
 // model.gen.js — generates model-before.svg and model-after.svg
 // ---------------------------------------------------------------------------
-// The before/after diagrams are rendered from the small model definitions at the
-// bottom of this file, so they stay editable and consistent. To change a
-// collection, field, or connector, edit the `before` / `after` objects and run:
+// Each collection is drawn as a small "document shape" tree: fields with types,
+// nested sub-documents/arrays indented under a guide line, and references drawn
+// as connector lines to the target collection (with a cardinality label).
+//   before : the naive port — ObjectId _ids, duplicate id fields, string
+//            foreign keys (dashed lines), a separate orderLines collection.
+//   after  : the document model — natural _ids, embedded card/items/spec,
+//            real references (solid lines). N:N where a reference is array-valued.
 //
+// Edit the `before` / `after` definitions below and re-render (plain Node):
 //     node docs/images/model.gen.js
-//
-// (Plain Node, no dependencies.) This plays the role the sister repos' Graphviz
-// `.dot` sources play — the editable source next to the rendered SVG.
+// (The editable source next to the SVG, like the sister repos' Graphviz .dot.)
 // ---------------------------------------------------------------------------
 
 const fs = require('fs');
 const path = require('path');
 
-// Palette — "light neutral": white boxes, green primary keys, teal references.
-const pal = { bg: '#f7f9fc', dot: '#dde5ee', box: '#ffffff', border: '#dbe3ec', header: '#eef2f7',
-  headerText: '#0f172a', grip: '#94a3b8', pk: '#16a34a', fk: '#0d9488', fname: '#1f2b38', nested: '#516170',
-  type: '#5b6b7b', bracket: '#94a3b8', line: '#94a3b8', shadow: '#1e293b' };
+const F = "'Segoe UI', Helvetica, Arial, sans-serif", MONO = "Consolas, 'Courier New', monospace";
+const COL = { customers: '#2563eb', orders: '#00a35c', products: '#7c3aed', reviews: '#d97706', categories: '#0891b2', orderLines: '#0f766e' };
+const HDR = 38, ROW = 25, PADB = 14, W_ = 285, LINE = '#94a3b8', REF = '#2563eb', FK = '#b45309';
 
-const HEADER = 38, PADTOP = 22, ROW = 25, PADBOT = 14;
-const rowBaseline = (b, i) => b.y + HEADER + PADTOP + i * ROW;
-const boxH = b => HEADER + PADTOP + b.fields.length * ROW + PADBOT;
-const fieldIdx = (b, n) => b.fields.findIndex(f => f.n === n);
+function build(spec) {
+  const { W, H, caption, cards, model, conns } = spec;
+  const idx = (c, n) => model[c].findIndex(f => f.n === n);
+  const rowY = (c, i) => cards[c].y + HDR + i * ROW + 13;
 
-function keyIcon(x, y, c) {
-  return `<g stroke="${c}" stroke-width="1.6" fill="none" stroke-linecap="round">`
-    + `<circle cx="${x + 3}" cy="${y}" r="3.1"/><line x1="${x + 6}" y1="${y}" x2="${x + 13}" y2="${y}"/>`
-    + `<line x1="${x + 10}" y1="${y}" x2="${x + 10}" y2="${y + 3}"/><line x1="${x + 13}" y1="${y}" x2="${x + 13}" y2="${y + 3}"/></g>`;
-}
-function linkIcon(x, y, c) {
-  return `<g stroke="${c}" stroke-width="1.6" fill="none"><circle cx="${x + 3}" cy="${y}" r="3"/><circle cx="${x + 9}" cy="${y}" r="3"/></g>`;
-}
-
-function render(model) {
-  const { W, H, boxes, conns, footer } = model;
-  const byId = id => boxes.find(b => b.id === id);
-  let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" font-family="'Segoe UI', Helvetica, Arial, sans-serif">`;
-  s += `<defs><pattern id="dots" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.1" fill="${pal.dot}"/></pattern>`;
-  s += `<filter id="sh" x="-8%" y="-8%" width="116%" height="124%"><feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="${pal.shadow}" flood-opacity="0.10"/></filter></defs>`;
-  s += `<rect width="${W}" height="${H}" fill="${pal.bg}"/><rect width="${W}" height="${H}" fill="url(#dots)"/>`;
-
-  // connectors (under boxes). One orthogonal path: source edge -> bendX -> target row -> target edge.
-  conns.forEach(c => {
-    const S = byId(c.from[0]), T = byId(c.to);
-    const sy = rowBaseline(S, fieldIdx(S, c.from[1])) - 4;
-    const ty = rowBaseline(T, c.toField ? fieldIdx(T, c.toField) : 0) - 4;
-    const sx = c.srcEdge === 'left' ? S.x : S.x + S.w;
-    const tx = c.tgtEdge === 'left' ? T.x : T.x + T.w;
-    const dash = c.dashed ? ` stroke-dasharray="5,4"` : '';
-    s += `<path d="M${sx},${sy} H${c.bendX} V${ty} H${tx}" fill="none" stroke="${pal.line}" stroke-width="1.5"${dash}/>`;
-    const tk = c.tgtEdge === 'left' ? tx - 6 : tx + 6;
-    s += `<line x1="${tk}" y1="${ty - 5}" x2="${tk}" y2="${ty + 5}" stroke="${pal.line}" stroke-width="1.5"/>`;
-    const sk = c.srcEdge === 'left' ? sx - 6 : sx + 6;
-    s += `<line x1="${sk}" y1="${sy - 4}" x2="${sk}" y2="${sy + 4}" stroke="${pal.line}" stroke-width="1.5"/>`;
-  });
-
-  boxes.forEach(b => {
-    const h = boxH(b);
-    s += `<g filter="url(#sh)"><rect x="${b.x}" y="${b.y}" width="${b.w}" height="${h}" rx="10" fill="${pal.box}" stroke="${pal.border}" stroke-width="1.3"/></g>`;
-    s += `<path d="M${b.x},${b.y + 12} a10,10 0 0 1 10,-10 h${b.w - 20} a10,10 0 0 1 10,10 v${HEADER - 12} h${-b.w} z" fill="${pal.header}"/>`;
-    s += `<line x1="${b.x}" y1="${b.y + HEADER}" x2="${b.x + b.w}" y2="${b.y + HEADER}" stroke="${pal.border}" stroke-width="1.1"/>`;
-    for (let col = 0; col < 2; col++) for (let r = 0; r < 3; r++)
-      s += `<circle cx="${b.x + 14 + col * 4}" cy="${b.y + 13 + r * 6}" r="1.5" fill="${pal.grip}"/>`;
-    s += `<text x="${b.x + 30}" y="${b.y + 25}" font-size="15" font-weight="700" fill="${pal.headerText}">${b.id}</text>`;
-    b.fields.forEach((f, i) => {
-      const base = rowBaseline(b, i), indent = f.nested ? 16 : 0, cy = base - 4;
-      const iconX = b.x + 12 + indent;
-      if (f.k === 'pk') s += keyIcon(iconX, cy, pal.pk);
-      else if (f.k === 'fk') s += linkIcon(iconX, cy, pal.fk);
-      const nameX = b.x + 34 + indent;
-      const weight = f.k === 'pk' ? 600 : (f.nested ? 400 : 500);
-      s += `<text x="${nameX}" y="${base}" font-size="13.5" font-weight="${weight}" fill="${f.nested ? pal.nested : pal.fname}">${f.n}</text>`;
-      const isBr = f.t === '{}' || f.t === '[]';
-      s += `<text x="${b.x + b.w - 16}" y="${base}" font-size="13" text-anchor="end" font-family="Consolas,monospace" fill="${isBr ? pal.bracket : pal.type}">${f.t}</text>`;
+  function card(id) {
+    const { x, y } = cards[id], fs2 = model[id], h = HDR + fs2.length * ROW + PADB;
+    let s = `<rect x="${x}" y="${y}" width="${W_}" height="${h}" rx="11" fill="#ffffff" stroke="#e6ebf2" stroke-width="1.3" filter="url(#sh)"/>`;
+    s += `<circle cx="${x + 18}" cy="${y + 20}" r="5" fill="${COL[id]}"/>`;
+    s += `<text x="${x + 32}" y="${y + 25}" font-size="15" font-weight="800" fill="#0f172a" font-family="${F}">${id}</text>`;
+    s += `<line x1="${x}" y1="${y + HDR}" x2="${x + W_}" y2="${y + HDR}" stroke="#eef2f7" stroke-width="1.2"/>`;
+    fs2.forEach((f, i) => {
+      if (f.t === '{ }' || f.t === '[ ]') { let j = i + 1; while (j < fs2.length && fs2[j].l > f.l) j++;
+        if (j > i + 1) { const gx = x + 20 + f.l * 18 + 7; s += `<line x1="${gx}" y1="${y + HDR + i * ROW + ROW - 4}" x2="${gx}" y2="${y + HDR + (j - 1) * ROW + 17}" stroke="#dbe3ec" stroke-width="1.2"/>`; } }
     });
-  });
-  if (footer) s += `<text x="44" y="${H - 16}" font-size="12.5" font-family="Consolas,monospace" fill="${pal.type}">${footer}</text>`;
-  return s + `</svg>`;
-}
+    fs2.forEach((f, i) => {
+      const by = rowY(id, i), nx = x + 20 + f.l * 18;
+      const nc = f.ref ? REF : (f.fk ? FK : (f.l > 0 ? '#475569' : '#1f2b38')), nw = f.n === '_id' ? 700 : 500;
+      s += `<text x="${nx}" y="${by}" font-size="13" font-family="${MONO}" font-weight="${nw}" fill="${nc}">${f.n}</text>`;
+      const right = f.ref ? (f.arr ? 'ref [ ]' : 'ref') : f.t;
+      const rc = f.ref ? REF : (f.t === '{ }' || f.t === '[ ]' ? '#94a3b8' : '#64748b');
+      s += `<text x="${x + W_ - 16}" y="${by}" font-size="12.5" font-family="${MONO}" text-anchor="end" fill="${rc}">${right}</text>`;
+    });
+    return s;
+  }
 
-// ============================ BEFORE — the naive port ============================
-const before = {
-  W: 840, H: 842,
-  boxes: [
-    { id: 'orders', x: 44, y: 30, w: 300, fields: [
-      { n: '_id', t: '{}', k: 'pk' }, { n: 'orderId', t: 'string' }, { n: 'customerId', t: 'string', k: 'fk' },
-      { n: 'orderDate', t: 'date' }, { n: 'status', t: 'string' } ] },
-    { id: 'orderLines', x: 44, y: 300, w: 300, fields: [
-      { n: '_id', t: '{}', k: 'pk' }, { n: 'orderId', t: 'string', k: 'fk' }, { n: 'productId', t: 'string', k: 'fk' },
-      { n: 'quantity', t: 'int' }, { n: 'listPrice', t: 'double' } ] },
-    { id: 'reviews', x: 44, y: 570, w: 300, fields: [
-      { n: '_id', t: '{}', k: 'pk' }, { n: 'reviewId', t: 'string' }, { n: 'authorId', t: 'string', k: 'fk' },
-      { n: 'productId', t: 'string', k: 'fk' }, { n: 'rating', t: 'int' }, { n: 'content', t: 'string' } ] },
-    { id: 'customers', x: 480, y: 30, w: 320, fields: [
-      { n: '_id', t: '{}', k: 'pk' }, { n: 'customerId', t: 'string' }, { n: 'name', t: 'string' }, { n: 'email', t: 'string' },
-      { n: 'state', t: 'string' }, { n: 'wishlist', t: 'string' }, { n: 'creditCard', t: 'string' } ] },
-    { id: 'products', x: 480, y: 470, w: 320, fields: [
-      { n: '_id', t: '{}', k: 'pk' }, { n: 'productId', t: 'string' }, { n: 'name', t: 'string' }, { n: 'category', t: 'string' },
-      { n: 'vendorName', t: 'string' }, { n: 'listPrice', t: 'double' }, { n: 'compatibleOs', t: 'string' } ] },
-  ],
-  conns: [
-    { from: ['orders', 'customerId'], to: 'customers', srcEdge: 'right', tgtEdge: 'left', bendX: 400, dashed: true },
-    { from: ['orderLines', 'orderId'], to: 'orders', srcEdge: 'left', tgtEdge: 'left', bendX: 22, dashed: true },
-    { from: ['orderLines', 'productId'], to: 'products', srcEdge: 'right', tgtEdge: 'left', bendX: 420, dashed: true },
-    { from: ['reviews', 'authorId'], to: 'customers', srcEdge: 'right', tgtEdge: 'left', bendX: 388, dashed: true },
-    { from: ['reviews', 'productId'], to: 'products', srcEdge: 'right', tgtEdge: 'left', bendX: 436, dashed: true },
-  ],
-  footer: '- - - string foreign key (no real link) — every cross-collection read is a $lookup',
-};
+  function conn(c) {
+    const S = cards[c.s], T = cards[c.t];
+    const sy = rowY(c.s, idx(c.s, c.sf)) - 4, ty = rowY(c.t, idx(c.t, c.tf || '_id')) - 4;
+    const sx = c.se === 'R' ? S.x + W_ : S.x, tx = c.te === 'R' ? T.x + W_ : T.x;
+    const dir = Math.sign(tx - c.bend) || 1;
+    const dash = c.dashed ? ' stroke-dasharray="6,4"' : '';
+    let s = `<circle cx="${sx}" cy="${sy}" r="3.4" fill="${c.dashed ? FK : REF}"/>`;
+    s += `<path d="M${sx},${sy} H${c.bend} V${ty} H${tx}" fill="none" stroke="${LINE}" stroke-width="1.5"${dash}/>`;
+    s += `<path d="M${tx},${ty} l${-9 * dir},-4.5 l0,9 z" fill="${LINE}"/>`;
+    if (c.c) { const ly = (sy + ty) / 2; s += `<rect x="${c.bend - 19}" y="${ly - 10}" width="38" height="19" rx="9" fill="#fff" stroke="#cbd5e1" stroke-width="1"/>`;
+      s += `<text x="${c.bend}" y="${ly + 3.5}" font-size="11" font-weight="700" text-anchor="middle" fill="#475569" font-family="${F}">${c.c}</text>`; }
+    return s;
+  }
+
+  let b = `<text x="40" y="30" font-size="13" font-family="${F}" fill="#94a3b8" font-weight="600">${caption}</text>`;
+  conns.forEach(c => b += conn(c));
+  Object.keys(cards).forEach(id => b += card(id));
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" font-family="${F}"><defs><filter id="sh" x="-8%" y="-8%" width="116%" height="122%"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#1e293b" flood-opacity="0.10"/></filter></defs><rect width="${W}" height="${H}" fill="#f8fafc"/>${b}</svg>`;
+}
 
 // ============================ AFTER — the document model ============================
 const after = {
-  W: 880, H: 850,
-  boxes: [
-    { id: 'orders', x: 44, y: 30, w: 300, fields: [
-      { n: '_id', t: 'string', k: 'pk' }, { n: 'customerId', t: 'string', k: 'fk' }, { n: 'orderDate', t: 'date' },
-      { n: 'status', t: 'string' }, { n: 'items', t: '[]' },
-      { n: 'productId', t: 'string', k: 'fk', nested: true }, { n: 'name', t: 'string', nested: true },
-      { n: 'quantity', t: 'int', nested: true }, { n: 'listPrice', t: 'double', nested: true } ] },
-    { id: 'reviews', x: 44, y: 380, w: 300, fields: [
-      { n: '_id', t: 'string', k: 'pk' }, { n: 'authorId', t: 'string', k: 'fk' }, { n: 'productId', t: 'string', k: 'fk' },
-      { n: 'rating', t: 'int' }, { n: 'authorName', t: 'string' } ] },
-    { id: 'customers', x: 480, y: 30, w: 320, fields: [
-      { n: '_id', t: 'string', k: 'pk' }, { n: 'name', t: 'string' }, { n: 'email', t: 'string' },
-      { n: 'wishlistProductIds', t: '[]', k: 'fk' }, { n: 'card', t: '{}' },
-      { n: 'last4', t: 'string', nested: true }, { n: 'token', t: 'string', nested: true } ] },
-    { id: 'products', x: 480, y: 320, w: 320, fields: [
-      { n: '_id', t: 'string', k: 'pk' }, { n: 'name', t: 'string' }, { n: 'listPrice', t: 'double' },
-      { n: 'productType', t: 'string' }, { n: 'spec', t: '{}' }, { n: 'attributes', t: '[]' },
-      { n: 'categoryId', t: 'string', k: 'fk' }, { n: 'avgRating', t: 'double' } ] },
-    { id: 'categories', x: 480, y: 620, w: 320, fields: [
-      { n: '_id', t: 'string', k: 'pk' }, { n: 'name', t: 'string' }, { n: 'parentId', t: 'string', k: 'fk' },
-      { n: 'ancestors', t: '[]' }, { n: 'path', t: 'string' } ] },
-  ],
+  W: 1090, H: 588, caption: 'OnlineStore — document model  ·  solid line = reference',
+  cards: { orders: { x: 40, y: 46 }, reviews: { x: 40, y: 352 }, customers: { x: 395, y: 46 }, products: { x: 395, y: 330 }, categories: { x: 752, y: 392 } },
+  model: {
+    customers: [{ n: '_id', l: 0, t: 'ObjectId' }, { n: 'name', l: 0, t: 'string' }, { n: 'email', l: 0, t: 'string' },
+      { n: 'wishlistProductIds', l: 0, ref: 1, arr: 1 }, { n: 'card', l: 0, t: '{ }' }, { n: 'last4', l: 1, t: 'string' }, { n: 'token', l: 1, t: 'string' }],
+    orders: [{ n: '_id', l: 0, t: 'ObjectId' }, { n: 'customerId', l: 0, ref: 1 }, { n: 'orderDate', l: 0, t: 'date' }, { n: 'status', l: 0, t: 'string' },
+      { n: 'items', l: 0, t: '[ ]' }, { n: 'productId', l: 1, ref: 1 }, { n: 'quantity', l: 1, t: 'int' }, { n: 'listPrice', l: 1, t: 'double' }],
+    products: [{ n: '_id', l: 0, t: 'ObjectId' }, { n: 'name', l: 0, t: 'string' }, { n: 'listPrice', l: 0, t: 'double' }, { n: 'productType', l: 0, t: 'string' },
+      { n: 'categoryId', l: 0, ref: 1 }, { n: 'spec', l: 0, t: '{ }' }, { n: 'weightKg', l: 1, t: 'double' }],
+    reviews: [{ n: '_id', l: 0, t: 'ObjectId' }, { n: 'authorId', l: 0, ref: 1 }, { n: 'productId', l: 0, ref: 1 }, { n: 'rating', l: 0, t: 'int' }, { n: 'authorName', l: 0, t: 'string' }],
+    categories: [{ n: '_id', l: 0, t: 'ObjectId' }, { n: 'name', l: 0, t: 'string' }, { n: 'parentId', l: 0, ref: 1 }, { n: 'ancestors', l: 0, ref: 1, arr: 1 }, { n: 'path', l: 0, t: 'string' }],
+  },
   conns: [
-    { from: ['orders', 'customerId'], to: 'customers', srcEdge: 'right', tgtEdge: 'left', bendX: 400 },
-    { from: ['orders', 'productId'], to: 'products', srcEdge: 'right', tgtEdge: 'left', bendX: 424 },
-    { from: ['reviews', 'authorId'], to: 'customers', srcEdge: 'right', tgtEdge: 'left', bendX: 388 },
-    { from: ['reviews', 'productId'], to: 'products', srcEdge: 'right', tgtEdge: 'left', bendX: 412 },
-    { from: ['products', 'categoryId'], to: 'categories', srcEdge: 'right', tgtEdge: 'right', bendX: 828 },
-    { from: ['categories', 'parentId'], to: 'categories', srcEdge: 'right', tgtEdge: 'right', bendX: 846 },
+    { s: 'orders', sf: 'customerId', t: 'customers', se: 'R', te: 'L', bend: 366, c: 'N:1' },
+    { s: 'orders', sf: 'productId', t: 'products', se: 'R', te: 'L', bend: 352, c: 'N:N' }, // items[] is array-valued → many-to-many
+    { s: 'reviews', sf: 'authorId', t: 'customers', se: 'R', te: 'L', bend: 377, c: 'N:1' },
+    { s: 'reviews', sf: 'productId', t: 'products', se: 'R', te: 'L', bend: 359, c: 'N:1' },
+    { s: 'products', sf: 'categoryId', t: 'categories', se: 'R', te: 'L', bend: 720, c: 'N:1' },
+    { s: 'customers', sf: 'wishlistProductIds', t: 'products', se: 'R', te: 'R', bend: 700, c: 'N:N' },
+    { s: 'categories', sf: 'parentId', t: 'categories', se: 'R', te: 'R', bend: 1068, c: 'tree' },
   ],
-  footer: 'embedded items[] · solid line = id reference · categories is a tree (parentId self-ref)',
 };
 
-fs.writeFileSync(path.join(__dirname, 'model-before.svg'), render(before));
-fs.writeFileSync(path.join(__dirname, 'model-after.svg'), render(after));
+// ============================ BEFORE — the naive port ============================
+// Relational normalization ported as-is: a separate orderLines collection turns the
+// order↔product many-to-many into two N:1 string FKs. Dashed = faked (string) FK.
+const before = {
+  W: 905, H: 690, caption: 'OnlineStore — naive port  ·  dashed line = string foreign key (a $lookup)',
+  cards: { orders: { x: 60, y: 44 }, orderLines: { x: 60, y: 252 }, reviews: { x: 60, y: 460 }, customers: { x: 580, y: 44 }, products: { x: 580, y: 320 } },
+  model: {
+    orders: [{ n: '_id', l: 0, t: 'ObjectId' }, { n: 'orderId', l: 0, t: 'string' }, { n: 'customerId', l: 0, fk: 1, t: 'string' }, { n: 'orderDate', l: 0, t: 'date' }, { n: 'status', l: 0, t: 'string' }],
+    orderLines: [{ n: '_id', l: 0, t: 'ObjectId' }, { n: 'orderId', l: 0, fk: 1, t: 'string' }, { n: 'productId', l: 0, fk: 1, t: 'string' }, { n: 'quantity', l: 0, t: 'int' }, { n: 'listPrice', l: 0, t: 'double' }],
+    reviews: [{ n: '_id', l: 0, t: 'ObjectId' }, { n: 'reviewId', l: 0, t: 'string' }, { n: 'authorId', l: 0, fk: 1, t: 'string' }, { n: 'productId', l: 0, fk: 1, t: 'string' }, { n: 'rating', l: 0, t: 'int' }, { n: 'content', l: 0, t: 'string' }],
+    customers: [{ n: '_id', l: 0, t: 'ObjectId' }, { n: 'customerId', l: 0, t: 'string' }, { n: 'name', l: 0, t: 'string' }, { n: 'email', l: 0, t: 'string' }, { n: 'state', l: 0, t: 'string' }, { n: 'wishlist', l: 0, t: 'string' }, { n: 'creditCard', l: 0, t: 'string' }],
+    products: [{ n: '_id', l: 0, t: 'ObjectId' }, { n: 'productId', l: 0, t: 'string' }, { n: 'name', l: 0, t: 'string' }, { n: 'category', l: 0, t: 'string' }, { n: 'vendorName', l: 0, t: 'string' }, { n: 'listPrice', l: 0, t: 'double' }, { n: 'compatibleOs', l: 0, t: 'string' }],
+  },
+  conns: [
+    { s: 'orders', sf: 'customerId', t: 'customers', tf: 'customerId', se: 'R', te: 'L', bend: 448, c: 'N:1', dashed: 1 },
+    { s: 'orderLines', sf: 'orderId', t: 'orders', tf: 'orderId', se: 'L', te: 'L', bend: 34, c: 'N:1', dashed: 1 },
+    { s: 'orderLines', sf: 'productId', t: 'products', tf: 'productId', se: 'R', te: 'L', bend: 470, c: 'N:1', dashed: 1 },
+    { s: 'reviews', sf: 'authorId', t: 'customers', tf: 'customerId', se: 'R', te: 'L', bend: 430, c: 'N:1', dashed: 1 },
+    { s: 'reviews', sf: 'productId', t: 'products', tf: 'productId', se: 'R', te: 'L', bend: 490, c: 'N:1', dashed: 1 },
+  ],
+};
+
+fs.writeFileSync(path.join(__dirname, 'model-after.svg'), build(after));
+fs.writeFileSync(path.join(__dirname, 'model-before.svg'), build(before));
 console.log('wrote model-before.svg and model-after.svg');
