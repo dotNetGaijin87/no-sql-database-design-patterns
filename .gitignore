@@ -1,0 +1,19 @@
+# MongoDB / tooling local files
+*.bson
+*.archive
+dump/
+mongodump/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vs/
+.vscode/
+*.suo
+*.user
+
+# Scratch
+scratchpad/
+
+# Local-only Docker env (machine-specific host port)
+.env

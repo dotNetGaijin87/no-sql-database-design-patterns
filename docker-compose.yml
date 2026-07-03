@@ -1,0 +1,24 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: onlinestore-mongo
+    # No auth on purpose — this is a throwaway teaching database that only ever
+    # listens on localhost. Every mongosh call in the README connects to the
+    # `onlinestore` database with no credentials. Do NOT copy this into anything
+    # that leaves your laptop.
+    command: ["mongod", "--quiet"]
+    ports:
+      # Defaults to the conventional 27017. If that's already taken (e.g. you run
+      # another MongoDB), set MONGO_PORT in a .env file next to this one — Compose
+      # picks it up automatically and the two instances run side by side. The
+      # `docker exec … mongosh` commands in the README are unaffected, since they
+      # run *inside* the container.
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - onlinestore-mongo-data:/data/db
+      # The repo is mounted read-only at /workspace so the bundled mongosh can
+      # run the scripts straight from src/ and helpers/.
+      - ./:/workspace:ro
+
+volumes:
+  onlinestore-mongo-data:
