@@ -22,7 +22,7 @@ The pattern taxonomy follows a document-modeling curriculum (embedding, referenc
 
 ### Before — the naive port
 
-[`src/000_initial_naive.js`](src/000_initial_naive.js) is deliberately imperfect: it carries relational habits straight into MongoDB — a random `ObjectId` `_id` beside a duplicate business id, relationships faked as **string foreign keys** (dashed, amber below), a separate `orderLines` collection, denormalized strings (`wishlist`, `category`, `creditCard`), and not a single index — so the later scripts have something real to fix. Every cross-collection read is a `$lookup`.
+[`src/000_initial_naive.js`](src/000_initial_naive.js) is deliberately imperfect: it carries relational habits straight into MongoDB — a random `ObjectId` `_id` beside a duplicate business id, relationships faked as **string foreign keys** (amber below), a separate `orderLines` collection, denormalized strings (`wishlist`, `category`, `creditCard`), and not a single index — so the later scripts have something real to fix. Every cross-collection read is a `$lookup`.
 
 <p align="center">
   <img src="docs/images/model-before.svg" alt="OnlineStore — the naive relational port: five collections joined by string foreign keys" width="100%">

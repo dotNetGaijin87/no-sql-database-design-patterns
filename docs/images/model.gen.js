@@ -22,7 +22,7 @@ const COL = { customers: '#2563eb', orders: '#00a35c', products: '#7c3aed', revi
 const HDR = 38, ROW = 25, PADB = 14, W_ = 285, LINE = '#94a3b8', REF = '#2563eb', FK = '#b45309';
 
 function build(spec) {
-  const { W, H, caption, cards, model, conns } = spec;
+  const { W, H, cards, model, conns } = spec;
   const idx = (c, n) => model[c].findIndex(f => f.n === n);
   const rowY = (c, i) => cards[c].y + HDR + i * ROW + 13;
 
@@ -51,10 +51,10 @@ function build(spec) {
     const S = cards[c.s], T = cards[c.t];
     const sy = rowY(c.s, idx(c.s, c.sf)) - 4, ty = rowY(c.t, idx(c.t, c.tf || '_id')) - 4 + (c.tdy || 0);
     const sx = c.se === 'R' ? S.x + W_ : S.x, tx = c.te === 'R' ? T.x + W_ : T.x;
-    const dash = c.dashed ? ' stroke-dasharray="6,4"' : '';
     const outS = Math.sign(c.bend - sx) || 1, adir = Math.sign(tx - c.bend) || 1;
-    let s = `<circle cx="${sx}" cy="${sy}" r="3.2" fill="${c.dashed ? FK : REF}"/>`;               // dot at the reference field
-    s += `<path d="M${sx},${sy} H${c.bend} V${ty} H${tx}" fill="none" stroke="${LINE}" stroke-width="1.5"${dash}/>`;
+    const sf = model[c.s][idx(c.s, c.sf)];
+    let s = `<circle cx="${sx}" cy="${sy}" r="3.2" fill="${sf.fk ? FK : REF}"/>`;                    // dot at the reference field
+    s += `<path d="M${sx},${sy} H${c.bend} V${ty} H${tx}" fill="none" stroke="${LINE}" stroke-width="1.5"/>`;
     s += `<path d="M${tx},${ty} l${-9 * adir},-4.5 l0,9 z" fill="${LINE}"/>`;                        // arrowhead at the referenced collection
     // cardinality label beside the source field: distinct row per line, so they stay spaced out
     // and sit just above the line rather than overlaying it.
@@ -64,10 +64,11 @@ function build(spec) {
     return s;
   }
 
-  let b = `<text x="40" y="30" font-size="13" font-family="${F}" fill="#94a3b8" font-weight="600">${caption}</text>`;
+  const TOP = 22; // crop the empty top margin (no caption)
+  let b = '';
   conns.forEach(c => b += conn(c));
   Object.keys(cards).forEach(id => b += card(id));
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" font-family="${F}"><defs><filter id="sh" x="-8%" y="-8%" width="116%" height="122%"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#1e293b" flood-opacity="0.10"/></filter></defs><rect width="${W}" height="${H}" fill="#f8fafc"/>${b}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 ${TOP} ${W} ${H - TOP}" font-family="${F}"><defs><filter id="sh" x="-8%" y="-8%" width="116%" height="122%"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#1e293b" flood-opacity="0.10"/></filter></defs><rect x="0" y="${TOP}" width="${W}" height="${H - TOP}" fill="#f8fafc"/>${b}</svg>`;
 }
 
 // ============================ AFTER — the document model ============================
