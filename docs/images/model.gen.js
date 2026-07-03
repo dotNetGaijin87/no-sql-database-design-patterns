@@ -49,15 +49,18 @@ function build(spec) {
 
   function conn(c) {
     const S = cards[c.s], T = cards[c.t];
-    const sy = rowY(c.s, idx(c.s, c.sf)) - 4, ty = rowY(c.t, idx(c.t, c.tf || '_id')) - 4;
+    const sy = rowY(c.s, idx(c.s, c.sf)) - 4, ty = rowY(c.t, idx(c.t, c.tf || '_id')) - 4 + (c.tdy || 0);
     const sx = c.se === 'R' ? S.x + W_ : S.x, tx = c.te === 'R' ? T.x + W_ : T.x;
-    const dir = Math.sign(tx - c.bend) || 1;
     const dash = c.dashed ? ' stroke-dasharray="6,4"' : '';
-    let s = `<circle cx="${sx}" cy="${sy}" r="3.4" fill="${c.dashed ? FK : REF}"/>`;
+    const outS = Math.sign(c.bend - sx) || 1, adir = Math.sign(tx - c.bend) || 1;
+    let s = `<circle cx="${sx}" cy="${sy}" r="3.2" fill="${c.dashed ? FK : REF}"/>`;               // dot at the reference field
     s += `<path d="M${sx},${sy} H${c.bend} V${ty} H${tx}" fill="none" stroke="${LINE}" stroke-width="1.5"${dash}/>`;
-    s += `<path d="M${tx},${ty} l${-9 * dir},-4.5 l0,9 z" fill="${LINE}"/>`;
-    if (c.c) { const ly = (sy + ty) / 2; s += `<rect x="${c.bend - 19}" y="${ly - 10}" width="38" height="19" rx="9" fill="#fff" stroke="#cbd5e1" stroke-width="1"/>`;
-      s += `<text x="${c.bend}" y="${ly + 3.5}" font-size="11" font-weight="700" text-anchor="middle" fill="#475569" font-family="${F}">${c.c}</text>`; }
+    s += `<path d="M${tx},${ty} l${-9 * adir},-4.5 l0,9 z" fill="${LINE}"/>`;                        // arrowhead at the referenced collection
+    // cardinality label beside the source field: distinct row per line, so they stay spaced out
+    // and sit just above the line rather than overlaying it.
+    if (c.c) { const lx = sx + outS * 40, ly = sy - 14;
+      s += `<rect x="${lx - 20}" y="${ly - 10}" width="40" height="19" rx="9" fill="#fff" stroke="#cbd5e1" stroke-width="1"/>`;
+      s += `<text x="${lx}" y="${ly + 3.5}" font-size="11" font-weight="700" text-anchor="middle" fill="#475569" font-family="${F}">${c.c}</text>`; }
     return s;
   }
 
@@ -69,8 +72,8 @@ function build(spec) {
 
 // ============================ AFTER — the document model ============================
 const after = {
-  W: 1090, H: 588, caption: 'OnlineStore — document model  ·  solid line = reference',
-  cards: { orders: { x: 40, y: 46 }, reviews: { x: 40, y: 352 }, customers: { x: 395, y: 46 }, products: { x: 395, y: 330 }, categories: { x: 752, y: 392 } },
+  W: 1180, H: 590, caption: 'OnlineStore — document model  ·  solid line = reference  ·  N:1 / N:N = cardinality',
+  cards: { orders: { x: 40, y: 46 }, reviews: { x: 40, y: 352 }, customers: { x: 470, y: 46 }, products: { x: 470, y: 330 }, categories: { x: 830, y: 392 } },
   model: {
     customers: [{ n: '_id', l: 0, t: 'ObjectId' }, { n: 'name', l: 0, t: 'string' }, { n: 'email', l: 0, t: 'string' },
       { n: 'wishlistProductIds', l: 0, ref: 1, arr: 1 }, { n: 'card', l: 0, t: '{ }' }, { n: 'last4', l: 1, t: 'string' }, { n: 'token', l: 1, t: 'string' }],
@@ -82,13 +85,13 @@ const after = {
     categories: [{ n: '_id', l: 0, t: 'ObjectId' }, { n: 'name', l: 0, t: 'string' }, { n: 'parentId', l: 0, ref: 1 }, { n: 'ancestors', l: 0, ref: 1, arr: 1 }, { n: 'path', l: 0, t: 'string' }],
   },
   conns: [
-    { s: 'orders', sf: 'customerId', t: 'customers', se: 'R', te: 'L', bend: 366, c: 'N:1' },
-    { s: 'orders', sf: 'productId', t: 'products', se: 'R', te: 'L', bend: 352, c: 'N:N' }, // items[] is array-valued → many-to-many
-    { s: 'reviews', sf: 'authorId', t: 'customers', se: 'R', te: 'L', bend: 377, c: 'N:1' },
-    { s: 'reviews', sf: 'productId', t: 'products', se: 'R', te: 'L', bend: 359, c: 'N:1' },
-    { s: 'products', sf: 'categoryId', t: 'categories', se: 'R', te: 'L', bend: 720, c: 'N:1' },
-    { s: 'customers', sf: 'wishlistProductIds', t: 'products', se: 'R', te: 'R', bend: 700, c: 'N:N' },
-    { s: 'categories', sf: 'parentId', t: 'categories', se: 'R', te: 'R', bend: 1068, c: 'tree' },
+    { s: 'orders', sf: 'customerId', t: 'customers', se: 'R', te: 'L', bend: 360, c: 'N:1', tdy: -8 },
+    { s: 'orders', sf: 'productId', t: 'products', se: 'R', te: 'L', bend: 400, c: 'N:N', tdy: -8 }, // items[] is array-valued → many-to-many
+    { s: 'reviews', sf: 'authorId', t: 'customers', se: 'R', te: 'L', bend: 432, c: 'N:1', tdy: 8 },
+    { s: 'reviews', sf: 'productId', t: 'products', se: 'R', te: 'L', bend: 380, c: 'N:1', tdy: 8 },
+    { s: 'products', sf: 'categoryId', t: 'categories', se: 'R', te: 'L', bend: 793, c: 'N:1' },
+    { s: 'customers', sf: 'wishlistProductIds', t: 'products', se: 'R', te: 'R', bend: 785, c: 'N:N' },
+    { s: 'categories', sf: 'parentId', t: 'categories', se: 'R', te: 'R', bend: 1150, c: 'tree' },
   ],
 };
 
@@ -96,7 +99,7 @@ const after = {
 // Relational normalization ported as-is: a separate orderLines collection turns the
 // order↔product many-to-many into two N:1 string FKs. Dashed = faked (string) FK.
 const before = {
-  W: 905, H: 690, caption: 'OnlineStore — naive port  ·  dashed line = string foreign key (a $lookup)',
+  W: 905, H: 690, caption: 'OnlineStore — naive port  ·  dashed line = string foreign key (a $lookup)  ·  N:1 = cardinality',
   cards: { orders: { x: 60, y: 44 }, orderLines: { x: 60, y: 252 }, reviews: { x: 60, y: 460 }, customers: { x: 580, y: 44 }, products: { x: 580, y: 320 } },
   model: {
     orders: [{ n: '_id', l: 0, t: 'ObjectId' }, { n: 'orderId', l: 0, t: 'string' }, { n: 'customerId', l: 0, fk: 1, t: 'string' }, { n: 'orderDate', l: 0, t: 'date' }, { n: 'status', l: 0, t: 'string' }],
@@ -106,11 +109,11 @@ const before = {
     products: [{ n: '_id', l: 0, t: 'ObjectId' }, { n: 'productId', l: 0, t: 'string' }, { n: 'name', l: 0, t: 'string' }, { n: 'category', l: 0, t: 'string' }, { n: 'vendorName', l: 0, t: 'string' }, { n: 'listPrice', l: 0, t: 'double' }, { n: 'compatibleOs', l: 0, t: 'string' }],
   },
   conns: [
-    { s: 'orders', sf: 'customerId', t: 'customers', tf: 'customerId', se: 'R', te: 'L', bend: 448, c: 'N:1', dashed: 1 },
+    { s: 'orders', sf: 'customerId', t: 'customers', tf: 'customerId', se: 'R', te: 'L', bend: 448, c: 'N:1', dashed: 1, tdy: -8 },
     { s: 'orderLines', sf: 'orderId', t: 'orders', tf: 'orderId', se: 'L', te: 'L', bend: 34, c: 'N:1', dashed: 1 },
-    { s: 'orderLines', sf: 'productId', t: 'products', tf: 'productId', se: 'R', te: 'L', bend: 470, c: 'N:1', dashed: 1 },
-    { s: 'reviews', sf: 'authorId', t: 'customers', tf: 'customerId', se: 'R', te: 'L', bend: 430, c: 'N:1', dashed: 1 },
-    { s: 'reviews', sf: 'productId', t: 'products', tf: 'productId', se: 'R', te: 'L', bend: 490, c: 'N:1', dashed: 1 },
+    { s: 'orderLines', sf: 'productId', t: 'products', tf: 'productId', se: 'R', te: 'L', bend: 470, c: 'N:1', dashed: 1, tdy: -8 },
+    { s: 'reviews', sf: 'authorId', t: 'customers', tf: 'customerId', se: 'R', te: 'L', bend: 430, c: 'N:1', dashed: 1, tdy: 8 },
+    { s: 'reviews', sf: 'productId', t: 'products', tf: 'productId', se: 'R', te: 'L', bend: 490, c: 'N:1', dashed: 1, tdy: 8 },
   ],
 };
 
