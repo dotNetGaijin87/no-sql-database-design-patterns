@@ -17,11 +17,11 @@ There is no "solution" here yet — this is the deliberately-imperfect starting 
 | Random `ObjectId` `_id` **and** a redundant `customerId`/`productId` field | [001](001-identity-and-keys.md) |
 | No indexes — every non-`_id` lookup is a `COLLSCAN` | [002](002-indexing-strategy.md) |
 | `orders` + `orderLines` split, joined by a string — a `$lookup` for data you always read together | [003](003-embedding.md) |
-| Order lines carry no product-name snapshot | 004 (planned) |
-| Reviews reference author/product by id only, forcing a `$lookup` to show a name | 005 (planned) |
-| Software-only fields (`compatibleOs`, `requiredRam`) as nullable fields on every product | 006 (planned) |
-| `category` as a `"/"`-delimited path string, not a tree | 012 (planned) |
-| `wishlist` as a CSV string; `creditCard` as inlined PII | later |
+| Order lines carry no product-name snapshot | [004](004-snapshot.md) |
+| Reviews reference author/product by id only, forcing a `$lookup` to show a name | [005](005-extended-reference.md) |
+| Software-only fields (`compatibleOs`, `requiredRam`) as nullable fields on every product | [006](006-supertype-subtype.md) |
+| `category` as a `"/"`-delimited path string, not a tree | [012](012-tree-structures.md) |
+| `wishlist` as a CSV string; `creditCard` as inlined PII | [009](009-many-to-many.md) / [013](013-lifecycle.md) |
 
 ## Trade-offs & when *not* to "fix" it
 A literal port is a legitimate **first migration step** — get the data in, verify counts, *then* remodel against your access patterns. What you must not do is stop here and call it a document database: you would be paying MongoDB's costs (no multi-document ACID by default, no foreign-key enforcement) while getting none of its benefits (locality, embedded reads, flexible schema). Every pattern that follows earns one of those benefits back.

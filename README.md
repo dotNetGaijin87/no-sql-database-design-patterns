@@ -142,7 +142,7 @@ Then re-run the sequence above to rebuild from `000`. (To wipe the data volume e
 │   └── reset.js         # Drop the database back to empty
 ├── docs/
 │   ├── patterns/        # One short write-up per pattern (problem / solution / trade-off)
-│   └── images/          # before/after model diagrams (hand-authored SVG)
+│   └── images/          # before/after model diagrams + generator (model.gen.js)
 ├── docker-compose.yml   # One-command MongoDB 7
 └── README.md
 ```
